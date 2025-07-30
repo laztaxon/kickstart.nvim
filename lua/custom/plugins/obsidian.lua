@@ -1,38 +1,16 @@
 return {
-  -- -- Set conceallevel for Markdown files
-
-  -- Obsidian configuration
   {
     'epwalsh/obsidian.nvim',
-    version = '*', -- recommended, use latest release instead of latest commit
+    version = '*',
     lazy = true,
     ft = 'markdown',
-    -- Replace the above line with this if you only want to load obsidian.nvim for markdown files in your vault:
-    -- event = {
-    --   -- If you want to use the home shortcut '~' here you need to call 'vim.fn.expand'.
-    --   -- E.g. "BufReadPre " .. vim.fn.expand "~" .. "/my-vault/**.md"
-    --   "BufReadPre path/to/my-vault/**.md",
-    --   "BufNewFile path/to/my-vault/**.md",
-    -- },
-    dependencies = {
-      -- Required.
-      'nvim-lua/plenary.nvim',
-    },
+    dependencies = { 'nvim-lua/plenary.nvim' },
+
     opts = {
       workspaces = {
-        {
-          name = 'main',
-          path = '~/Documents/cello-main/',
-        },
+        { name = 'main', path = '~/Documents/cello-main/' },
       },
-      new_notes_location = '~/Documents/cello-main/Inbox/',
-      follow_url_func = function(url)
-        -- Open the URL in the default web browser.
-        -- vim.fn.jobstart({"open", url})  -- Mac OS
-        -- vim.fn.jobstart({"xdg-open", url})  -- linux
-        -- vim.cmd(':silent exec "!start ' .. url .. '"') -- Windows
-        vim.ui.open(url) -- need Neovim 0.10.0+
-      end,
+
       templates = {
         folder = '~/Documents/cello-main/Templates/',
         date_format = '%Y-%m-%d-%a',
@@ -50,75 +28,74 @@ return {
           now = function()
             return os.date '%Y-%m-%d-%H:%M'
           end,
-          time = function()
-            return os.date '%H:%M'
-          end,
-          hour = function()
-            return os.date('%H:%M', os.time() + 3600)
-          end,
-          half = function()
-            return os.date('%H:%M', os.time() + 1800)
-          end,
-          block = function()
-            return os.date('%H:%M', os.time() + (3600 * 1.5))
-          end,
-          hour_start = function()
-            return os.date '%H:00'
-          end,
-          hour_end = function()
-            return os.date('%H:00', os.time() + 3600)
-          end,
-          half_end = function()
-            return os.date('%H:30', os.time() + 3600)
-          end,
         },
       },
+
       daily_notes = {
-        -- Optional, if you keep daily notes in a separate directory.
         folder = 'Dailies/',
-        -- Optional, if you want to change the date format for the ID of daily notes.
         date_format = '%Y-%m-%d',
-        -- Optional, if you want to automatically insert a template from your template directory like 'daily.md'
         template = '~/Documents/cello-main/Dailies/Daily-Template.md',
       },
-      -- Where to put new notes. Valid options are
-      -- * "current_dir" - put new notes in same directory as the current buffer.
-      --  * "notes_subdir" - put new notes in the default notes subdirectory.
 
       mappings = {
+        -- gf passthrough (your original)
         ['gf'] = {
           action = function()
             return require('obsidian').util.gf_passthrough()
           end,
           opts = { noremap = false, expr = true, buffer = true },
         },
-        -- toggle checkboxes
+
+        -- toggle on this line, then go to EOL + insert
         ['<leader>ch'] = {
           action = function()
-            return require('obsidian').util.toggle_checkbox()
+            require('obsidian').util.toggle_checkbox()
           end,
-          opts = { buffer = true },
+          opts = { buffer = true, desc = 'Toggle checkbox + insert' },
+        },
+
+        -- open new line, insert checkbox, then go to EOL + insert
+        ['<leader>cn'] = {
+          action = function()
+            local bufnr = 0
+            -- 1) what row are we on?
+            local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
+            -- 2) get the indent of that line
+            local line = vim.fn.getline(row)
+            local indent = line:match '^%s*' or ''
+            -- 3) build your checkbox line
+            local ck = indent .. '- [ ]  '
+            -- 4) insert it *below* (row is 1-based, set_lines uses 0-based start/end)
+            vim.api.nvim_buf_set_lines(bufnr, row, row, false, { ck })
+            -- 5) move cursor to end of the new line
+            vim.api.nvim_win_set_cursor(0, { row + 1, #ck })
+            -- 6) enter insert mode
+            vim.cmd 'startinsert'
+          end,
+          opts = { buffer = true, desc = 'New checkbox + insert' },
         },
       },
 
-      -- Optional, set the log level for obsidian.nvim. This is an integer corresponding to one of the log levels defined by "vim.log.levels.*".
-      log_level = vim.log.levels.INFO,
-      --Function Keymaps
-      vim.keymap.set('n', '<leader>zn', vim.cmd.ObsidianSearch, { desc = 'Search or create new note' }),
-      vim.keymap.set('v', '<leader>ze', vim.cmd.ObsidianExtractNote, { desc = 'Creates new note & links it to the Selected text' }),
-      vim.keymap.set('n', '<leader>zt', vim.cmd.ObsidianTemplate, { desc = 'Apply template to current note' }),
-      vim.keymap.set('n', '<leader>zd', vim.cmd.ObsidianToday, { desc = 'Creates new note for today or travel to today' }),
-      vim.keymap.set('n', '<leader>zy', vim.cmd.ObsidianYesterday, { desc = 'Creates new note for yesterday or travel to yesterday' }),
-      vim.keymap.set('n', '<leader>zm', vim.cmd.ObsidianTomorrow, { desc = 'Creates new note for tomorrow or travel to tomorrow' }),
-      vim.keymap.set('v', '<leader>zl', vim.cmd.ObsidianLink, { desc = 'Links Selected text to a note' }),
-      vim.keymap.set('n', '<leader>zb', vim.cmd.ObsidianBacklinks, { desc = 'Show backlinks for current note' }),
-      -- Optional, completion of wiki links, local markdown links, and tags using nvim-cmp.
       completion = {
-        -- Set to false to disable completion.
         nvim_cmp = true,
-        -- Trigger completion at 2 chars.
         min_chars = 2,
       },
     },
+
+    config = function(_, opts)
+      -- let obsidian.nvim do its thing
+      require('obsidian').setup(opts)
+
+      -- your other non-Obsidian keymaps
+      local km = vim.keymap.set
+      km('n', '<leader>zn', vim.cmd.ObsidianSearch, { desc = 'Search / new note' })
+      km('v', '<leader>ze', vim.cmd.ObsidianExtractNote, { desc = 'Extract note from selection' })
+      km('n', '<leader>zt', vim.cmd.ObsidianTemplate, { desc = 'Insert template' })
+      km('n', '<leader>zd', vim.cmd.ObsidianToday, { desc = 'Daily note: today' })
+      km('n', '<leader>zy', vim.cmd.ObsidianYesterday, { desc = 'Daily note: yesterday' })
+      km('n', '<leader>zm', vim.cmd.ObsidianTomorrow, { desc = 'Daily note: tomorrow' })
+      km('v', '<leader>zl', vim.cmd.ObsidianLink, { desc = 'Link selection' })
+      km('n', '<leader>zb', vim.cmd.ObsidianBacklinks, { desc = 'Show backlinks' })
+    end,
   },
 }
